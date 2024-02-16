@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Negocios_API.Datos;
 using Negocios_API.Models;
 using Negocios_API.Models.Dto;
+using Negocios_API.Repository.IRepository;
 
 namespace Negocios_API.Controllers
 {
@@ -12,33 +14,33 @@ namespace Negocios_API.Controllers
     public class BusinessController : ControllerBase
     {
         private readonly ILogger<BusinessController> _logger;
-        private readonly ApplicationDbContext _db;
+        private readonly IBusinessRepository _businessRepo;
 
-        public BusinessController(ILogger<BusinessController> logger, ApplicationDbContext db)
+        public BusinessController(ILogger<BusinessController> logger, IBusinessRepository businessRepo)
         {
             _logger = logger;
-            _db = db;
+            _businessRepo = businessRepo;
         }
 
         [HttpGet("GetBusinesses")]
-        public ActionResult<IEnumerable<BusinessDto>> GetBusinesses()
+        public async Task<ActionResult<IEnumerable<BusinessDto>>> GetBusinesses()
         {
             _logger.LogInformation("Get every business");
-            return Ok(_db.Businesses.ToList());
+            return Ok(await _businessRepo.GetAll());
         }
 
         [HttpGet("{id:int}", Name = "GetBusiness")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
         [ProducesResponseType(404)]
-        public ActionResult<BusinessDto> GetBusiness(int id)
+        public async Task<ActionResult<BusinessDto>> GetBusiness(int id)
         {
             if (id <= 0)
             {
                 _logger.LogError("Error al traer los datos del negocio con Id " + id);
                 return BadRequest();
             }
-            var business = _db.Businesses.FirstOrDefault(b => b.Id == id);
+            var business = await _businessRepo.Get(b => b.Id == id);
 
             if (business == null)
             {
@@ -52,13 +54,13 @@ namespace Negocios_API.Controllers
         [ProducesResponseType(201)]
         [ProducesResponseType(400)]
         [ProducesResponseType(500)]
-        public ActionResult<BusinessDto> CreateOwner([FromBody] BusinessDto businessDto)
+        public async Task<ActionResult<BusinessDto>> CreateOwner([FromBody] BusinessCreateDto businessDto)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
-            if (_db.Businesses.FirstOrDefault(b => b.RUC == businessDto.RUC) != null)
+            if (await _businessRepo.Get(b => b.RUC == businessDto.RUC) != null)
             {
                 ModelState.AddModelError("RUCExistente", "El RUC ya está registrado!");
                 return BadRequest(ModelState);
@@ -66,10 +68,6 @@ namespace Negocios_API.Controllers
             if (businessDto == null)
             {
                 return BadRequest(businessDto);
-            }
-            if (businessDto.Id > 0)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError);
             }
 
             Business model = new()
@@ -82,30 +80,28 @@ namespace Negocios_API.Controllers
                 FechaActualizacion = DateTime.Now
             };
 
-            _db.Businesses.Add(model);
-            _db.SaveChanges();
+            await _businessRepo.Create(model);
 
-            return CreatedAtRoute("GetBusiness", new { id = businessDto.Id }, businessDto);
+            return CreatedAtRoute("GetBusiness", new { id = model.Id }, model);
         }
 
         [HttpDelete("DeleteBusiness/{id:int}")]
         [ProducesResponseType(204)]
         [ProducesResponseType(400)]
         [ProducesResponseType(404)]
-        public IActionResult DeleteBusiness(int id)
+        public async Task<IActionResult> DeleteBusiness(int id)
         {
             if (id == 0)
             {
                 return BadRequest();
             }
-            var business = _db.Businesses.FirstOrDefault(b => b.Id == id);
+            var business = await _businessRepo.Get(b => b.Id == id);
             if (business == null)
             {
                 return NotFound();
             }
             
-            _db.Businesses.Remove(business);
-            _db.SaveChanges();
+            _businessRepo.Remove(business);
 
             return NoContent();
         }
@@ -113,7 +109,7 @@ namespace Negocios_API.Controllers
         [HttpPut("UpdateBusiness/{id:int}")]
         [ProducesResponseType(204)]
         [ProducesResponseType(400)]
-        public IActionResult UpdateBusiness(int id, [FromBody] BusinessDto businessDto)
+        public async Task<IActionResult> UpdateBusiness(int id, [FromBody] BusinessUpdateDto businessDto)
         {
             if (businessDto == null || id != businessDto.Id)
             {
@@ -129,8 +125,7 @@ namespace Negocios_API.Controllers
                 RUC = businessDto.RUC
             };
 
-            _db.Businesses.Update(model);
-            _db.SaveChanges();
+            _businessRepo.Update(model);
 
             return NoContent();
         }

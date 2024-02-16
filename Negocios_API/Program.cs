@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Negocios_API.Datos;
+using Negocios_API.Repository;
+using Negocios_API.Repository.IRepository;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +16,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(option =>
 {
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
+
+builder.Services.AddScoped<IOwnerRepository, OwnerRepository>();
+builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 
 var app = builder.Build();
 
